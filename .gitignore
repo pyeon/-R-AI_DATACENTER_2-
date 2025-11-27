@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.log
+
+# 참고: outputs/ 디렉토리는 Git에 포함 (Telegram 전송용)
+# market_data/, analysis_reports/는 Git에 포함 (분석 결과 보관용)
