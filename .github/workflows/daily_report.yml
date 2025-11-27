@@ -1,0 +1,62 @@
+name: 📊 Daily Datacenter Report
+
+on:
+  schedule:
+    # 매일 한국시간 15:00 (미국장 마감 후)
+    # UTC 06:00 = 한국시간 15:00
+    - cron: '0 6 * * *'
+  
+  # 수동 실행 버튼 추가
+  workflow_dispatch:
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v5
+      
+      - name: 🐍 Python 3.10 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: 📦 패키지 설치
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 📂 출력 디렉토리 생성
+        run: mkdir -p outputs
+      
+      - name: 📊 일일 리포트 실행
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python scripts/datacenter_report_enhanced.py
+      
+      - name: 📁 결과 파일 업로드 (Artifacts)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: daily-report-${{ github.run_number }}
+          path: |
+            outputs/*.xlsx
+            outputs/*.csv
+          retention-days: 30
+      
+      - name: ✅ 완료 알림
+        if: success()
+        run: |
+          echo "✅ 일일 리포트 생성 완료!"
+          echo "📁 Artifacts 탭에서 Excel 파일 다운로드 가능"
+          echo "📱 텔레그램 메시지 전송 완료"
+      
+      - name: ❌ 실패 알림
+        if: failure()
+        run: |
+          echo "❌ 일일 리포트 생성 실패"
+          echo "🔍 로그를 확인하세요"
