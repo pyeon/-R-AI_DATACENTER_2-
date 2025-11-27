@@ -1,0 +1,108 @@
+name: 🔍 Monthly Stock Selection
+
+on:
+  schedule:
+    # 매월 1일 한국시간 10:00
+    # UTC 01:00 = 한국시간 10:00
+    - cron: '0 1 1 * *'
+  
+  # 수동 실행 버튼
+  workflow_dispatch:
+
+jobs:
+  monthly-selection:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v5
+      
+      - name: 🐍 Python 3.10 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: 📦 패키지 설치
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 📂 출력 디렉토리 생성
+        run: mkdir -p outputs
+      
+      - name: 🔍 종목 선정 실행
+        run: |
+          python scripts/stock_selection_system.py | tee selection_output.txt
+      
+      - name: 📁 결과 파일 업로드 (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-selection-${{ github.run_number }}
+          path: |
+            outputs/selected_stocks_*.xlsx
+            selection_output.txt
+          retention-days: 90
+      
+      - name: 📝 Issue 생성 (선정 결과 알림)
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const date = new Date().toISOString().split('T')[0];
+            
+            // 선정 결과 텍스트 읽기
+            let outputText = '';
+            try {
+              outputText = fs.readFileSync('selection_output.txt', 'utf8');
+              // STOCKS 리스트 부분 추출
+              const stocksMatch = outputText.match(/STOCKS = \[([\s\S]*?)\]/);
+              const stocksList = stocksMatch ? stocksMatch[0] : '로그에서 STOCKS 리스트를 확인하세요';
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `📊 ${date} 월간 종목 선정 완료`,
+                body: `
+## 🎯 월간 종목 선정이 완료되었습니다!
+
+### 📥 다운로드
+- [Actions 실행 결과](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})에서 Excel 파일 다운로드
+
+### 📋 다음 단계
+1. **Excel 파일 다운로드 및 검토**
+   - Artifacts에서 \`selected_stocks_*.xlsx\` 다운로드
+   - 각 세부영역별 선정 종목 및 점수 확인
+
+2. **STOCKS 리스트 업데이트**
+   \`\`\`python
+   ${stocksList}
+   \`\`\`
+
+3. **코드 업데이트**
+   - \`scripts/datacenter_report_enhanced.py\` 파일 열기
+   - STOCKS 변수를 위 리스트로 교체
+   - 커밋 및 푸시
+
+### 📅 다음 실행
+- **다음 달 1일** 자동 실행 예정
+- 수동 실행: Actions → Monthly Stock Selection → Run workflow
+
+### 📊 참고
+- 점수 기준: 시가총액(30점) + 거래량(20점) + 3개월수익률(20점) + 6개월수익률(15점) + 기술적지표(15점)
+- 각 세부영역별 최고 점수 종목 자동 선정
+                `
+              });
+              
+              console.log('✅ Issue 생성 완료');
+            } catch (error) {
+              console.log('⚠️ Issue 생성 실패:', error.message);
+              console.log('Artifacts에서 결과 확인 가능');
+            }
+      
+      - name: ✅ 완료
+        run: |
+          echo "✅ 종목 선정 완료!"
+          echo "📁 Artifacts에서 Excel 다운로드 가능"
+          echo "📋 Issue가 생성되어 알림이 전송되었습니다"
