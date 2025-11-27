@@ -1,0 +1,64 @@
+name: 📰 Daily News Collection
+
+on:
+  schedule:
+    # 매일 한국시간 09:00 (뉴스 수집)
+    # UTC 00:00 = 한국시간 09:00
+    - cron: '0 0 * * *'
+  
+  # 수동 실행 버튼
+  workflow_dispatch:
+
+jobs:
+  news-collection:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Python 3.10 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: 📦 패키지 설치
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 📂 출력 디렉토리 생성
+        run: mkdir -p outputs
+      
+      - name: 📰 뉴스 수집 실행
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: |
+          python scripts/datacenter_news_monitor.py
+      
+      - name: 📁 결과 파일 업로드 (Artifacts)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: news-report-${{ github.run_number }}
+          path: |
+            outputs/news_*.docx
+            news_history.json
+          retention-days: 30
+      
+      - name: ✅ 완료 알림
+        if: success()
+        run: |
+          echo "✅ 뉴스 수집 완료!"
+          echo "📁 Artifacts 탭에서 Word 파일 다운로드 가능"
+          echo "📱 텔레그램 메시지 전송 완료"
+      
+      - name: ❌ 실패 알림
+        if: failure()
+        run: |
+          echo "❌ 뉴스 수집 실패"
+          echo "🔍 로그를 확인하세요"
