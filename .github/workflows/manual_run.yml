@@ -1,0 +1,71 @@
+name: 🎯 Manual Run (수동 실행)
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: '실행할 작업 선택'
+        required: true
+        type: choice
+        options:
+          - daily_report
+          - stock_selection
+          - both
+        default: 'daily_report'
+
+jobs:
+  manual-run:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v5
+      
+      - name: 🐍 Python 3.10 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: 📦 패키지 설치
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 📂 출력 디렉토리 생성
+        run: mkdir -p outputs
+      
+      - name: 📊 일일 리포트 실행
+        if: ${{ github.event.inputs.task == 'daily_report' || github.event.inputs.task == 'both' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "📊 일일 리포트 실행 중..."
+          python scripts/datacenter_report_enhanced.py
+          echo "✅ 일일 리포트 완료"
+      
+      - name: 🔍 종목 선정 실행
+        if: ${{ github.event.inputs.task == 'stock_selection' || github.event.inputs.task == 'both' }}
+        run: |
+          echo "🔍 종목 선정 실행 중..."
+          python scripts/stock_selection_system.py
+          echo "✅ 종목 선정 완료"
+      
+      - name: 📁 결과 파일 업로드 (Artifacts)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: manual-run-${{ github.run_number }}
+          path: outputs/*.xlsx
+          retention-days: 30
+      
+      - name: ✅ 완료 메시지
+        run: |
+          echo "✅ 수동 실행 완료!"
+          echo "📁 선택한 작업: ${{ github.event.inputs.task }}"
+          echo "📥 Artifacts 탭에서 결과 파일 다운로드 가능"
+          
+          if [ "${{ github.event.inputs.task }}" == "daily_report" ] || [ "${{ github.event.inputs.task }}" == "both" ]; then
+            echo "📱 텔레그램 메시지 전송 완료"
+          fi
